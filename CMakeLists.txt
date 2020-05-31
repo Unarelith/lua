@@ -20,6 +20,8 @@ option ( LUA_USE_RELATIVE_LOADLIB "Use modified loadlib.c with support for relat
 option ( LUA_COMPAT_5_1 "Enable backwards compatibility options with lua-5.1." ON )
 option ( LUA_COMPAT_5_2 "Enable backwards compatibility options with lua-5.2." ON )
 
+option ( LUA_BUILD_LUA_LUAC "Build Lua interpretter and compiler." ON )
+
 #2DO: LUAI_* and LUAL_* settings, for now defaults are used.
 set ( LUA_DIRSEP "/" )
 set ( LUA_MODULE_SUFFIX ${CMAKE_SHARED_MODULE_SUFFIX} )
@@ -62,10 +64,6 @@ endif ( )
 
 ## SETUP
 # Optional libraries
-find_package ( Readline )
-if ( READLINE_FOUND )
-  option ( LUA_USE_READLINE "Use readline in the Lua CLI." ON )
-endif ( )
 
 # Setup needed variables and libraries
 if ( LUA_USE_POSIX )
@@ -81,10 +79,15 @@ if ( LUA_USE_DLOPEN )
 	endif ( )
 endif ( )
 
+option ( LUA_USE_READLINE "Use readline in the Lua CLI." ON )
+
+# Add readline
 if ( LUA_USE_READLINE )
-  # Add readline
-  include_directories ( ${READLINE_INCLUDE_DIR} )
-  list ( APPEND LIBS ${READLINE_LIBRARY} )
+  find_package ( Readline )
+  if ( READLINE_FOUND )
+    include_directories ( ${READLINE_INCLUDE_DIR} )
+    list ( APPEND LIBS ${READLINE_LIBRARY} )
+  endif ( )
 endif ( )
 
 ## SOURCES
@@ -112,17 +115,22 @@ endif ( )
 ## BUILD
 # Create lua library
 add_library ( liblua ${SRC_CORE} ${SRC_LIB} ${LUA_DLL_RC} )
+target_compile_options ( liblua PRIVATE "-Wno-stringop-overflow" )
 target_link_libraries ( liblua ${LIBS} )
 set_target_properties ( liblua PROPERTIES OUTPUT_NAME lua CLEAN_DIRECT_OUTPUT 1 )
 if ( LUA_BUILD_AS_DLL )
   set_target_properties ( liblua PROPERTIES COMPILE_DEFINITIONS LUA_BUILD_AS_DLL )
 endif ()
 
-add_executable ( lua ${SRC_LUA} src/lua.rc )
-target_link_libraries ( lua liblua )
+if ( LUA_BUILD_LUA_LUAC )
+  add_executable ( lua ${SRC_LUA} src/lua.rc )
+  target_link_libraries ( lua liblua )
 
-add_executable ( luac ${SRC_CORE} ${SRC_LIB} ${SRC_LUAC} src/luac.rc )
-target_link_libraries ( luac ${LIBS} )
+  add_executable ( luac ${SRC_CORE} ${SRC_LIB} ${SRC_LUAC} src/luac.rc )
+  target_link_libraries ( luac ${LIBS} )
+
+  install_executable ( lua luac )
+endif ( )
 
 # On windows a variant of the lua interpreter without console output needs to be built
 if ( LUA_BUILD_WLUA )
@@ -131,7 +139,6 @@ if ( LUA_BUILD_WLUA )
   install_executable ( wlua )
 endif ( )
 
-install_executable ( lua luac )
 install_library ( liblua )
 install_data ( README.md )
 #install_lua_module ( strict etc/strict.lua )
